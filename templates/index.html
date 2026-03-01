@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CardioScan Clinical — Cardiac Risk Assessment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN SYSTEM — Clinical / Hospital EHR aesthetic
+   Cool whites, clinical blues, clear hierarchy
+═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #f0f2f5;
+  --surface:     #ffffff;
+  --surface2:    #f7f8fa;
+  --border:      #dde1e7;
+  --border2:     #c1c7d0;
+  --text:        #1d2433;
+  --text2:       #42526e;
+  --muted:       #7a869a;
+  --clinical-blue: #0052cc;
+  --clinical-blue-lt: #e6f0ff;
+  --clinical-blue-md: #b3d4ff;
+  --teal:        #00a3bf;
+  --teal-lt:     #e3fafc;
+  --safe:        #006644;
+  --safe-bg:     #e3fcef;
+  --safe-border: #abf5d1;
+  --warn:        #974f0c;
+  --warn-bg:     #fff7e6;
+  --warn-border: #ffe0b2;
+  --danger:      #bf2600;
+  --danger-bg:   #ffebe6;
+  --danger-border:#ffbdad;
+  --purple:      #403294;
+  --purple-bg:   #eae6ff;
+  --font: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+
+/* ── LAYOUT ── */
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;min-height:100vh}
+.topbar{grid-column:1/-1;background:var(--clinical-blue);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:100}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:12px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto}
+.content{background:var(--bg);overflow-y:auto;max-height:calc(100vh - 52px)}
+
+/* ── TOPBAR ── */
+.logo{display:flex;align-items:center;gap:10px;color:#fff}
+.logo-mark{width:28px;height:28px;background:rgba(255,255,255,0.2);border-radius:4px;display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2.5}
+.logo-text{font-size:15px;font-weight:600;letter-spacing:-0.01em}
+.logo-text span{opacity:0.7;font-weight:400}
+.topbar-center{color:rgba(255,255,255,0.7);font-size:12px;font-family:var(--mono)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.topbar-user{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.9);font-size:13px}
+.avatar{width:30px;height:30px;background:rgba(255,255,255,0.25);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+.model-chip{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.9);font-size:11px;font-family:var(--mono);padding:2px 8px;border-radius:3px}
+
+/* ── SIDEBAR ── */
+.nav-group-label{font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);padding:12px 16px 4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;border-left:3px solid transparent;transition:all 0.1s}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--clinical-blue-lt);color:var(--clinical-blue);border-left-color:var(--clinical-blue);font-weight:600}
+.nav-item svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0;opacity:0.8}
+.nav-badge{margin-left:auto;font-family:var(--mono);font-size:10px;background:var(--clinical-blue);color:#fff;padding:1px 6px;border-radius:10px}
+
+/* ── PAGE AREAS ── */
+.page{display:none;padding:24px 28px}
+.page.active{display:block}
+.page-header{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.page-title{font-size:18px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
+.page-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* ── STAT CARDS ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.stat-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.stat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)}
+.stat-icon{width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.stat-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.stat-value{font-family:var(--mono);font-size:26px;font-weight:500;line-height:1;margin-bottom:2px}
+.stat-sub{font-size:11px;color:var(--muted)}
+.stat-card.total .stat-icon{background:var(--clinical-blue-lt);color:var(--clinical-blue)}
+.stat-card.danger .stat-icon{background:var(--danger-bg);color:var(--danger)}
+.stat-card.danger .stat-value{color:var(--danger)}
+.stat-card.warn .stat-icon{background:var(--warn-bg);color:var(--warn)}
+.stat-card.warn .stat-value{color:var(--warn)}
+.stat-card.safe .stat-icon{background:var(--safe-bg);color:var(--safe)}
+.stat-card.safe .stat-value{color:var(--safe)}
+
+/* ── PATIENT TABLE ── */
+.table-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.table-toolbar-left{font-size:13px;font-weight:600;color:var(--text)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;transition:all 0.1s;white-space:nowrap}
+.btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+.btn-primary{background:var(--clinical-blue);color:#fff}
+.btn-primary:hover{background:#0747a6}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface2);border-color:var(--border2)}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger-border)}
+.btn-danger:hover{background:var(--danger-bg)}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--surface2);border-bottom:2px solid var(--border)}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)}
+td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafbfc}
+.patient-name-cell{font-weight:600;color:var(--text)}
+.patient-meta-cell{color:var(--muted);font-size:12px}
+
+/* ── RISK BADGES ── */
+.risk-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:3px;font-family:var(--mono);letter-spacing:0.04em}
+.risk-badge.HIGH{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.risk-badge.MODERATE{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border)}
+.risk-badge.LOW{background:var(--safe-bg);color:var(--safe);border:1px solid var(--safe-border)}
+.risk-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* ── PROBABILITY BAR ── */
+.prob-cell{min-width:140px}
+.prob-wrap{display:flex;align-items:center;gap:8px}
+.prob-val{font-family:var(--mono);font-size:12px;font-weight:500;width:38px;flex-shrink:0;color:var(--text2)}
+.prob-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.prob-fill{height:100%;border-radius:3px}
+.prob-fill.HIGH{background:var(--danger)}
+.prob-fill.MODERATE{background:#f79233}
+.prob-fill.LOW{background:#36b37e}
+
+/* ── DETAIL DRAWER ── */
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(9,30,66,0.5);z-index:200}
+.drawer-overlay.open{display:flex;justify-content:flex-end}
+.drawer{width:540px;height:100vh;background:var(--surface);box-shadow:var(--shadow-md);display:flex;flex-direction:column;animation:drawerIn 0.2s ease}
+@keyframes drawerIn{from{transform:translateX(540px)}to{transform:translateX(0)}}
+.drawer-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
+.drawer-body{flex:1;overflow-y:auto;padding:20px}
+.drawer-close{width:28px;height:28px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:16px}
+.drawer-close:hover{background:var(--surface2)}
+.drawer-patient-name{font-size:16px;font-weight:600}
+.drawer-patient-sub{font-size:12px;color:var(--muted);margin-top:1px}
+
+/* ── RISK SUMMARY BOX ── */
+.risk-summary{border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.risk-summary.HIGH{background:var(--danger-bg);border:1px solid var(--danger-border)}
+.risk-summary.MODERATE{background:var(--warn-bg);border:1px solid var(--warn-border)}
+.risk-summary.LOW{background:var(--safe-bg);border:1px solid var(--safe-border)}
+.risk-pct{font-family:var(--mono);font-size:36px;font-weight:500;line-height:1}
+.risk-pct.HIGH{color:var(--danger)}
+.risk-pct.MODERATE{color:var(--warn)}
+.risk-pct.LOW{color:var(--safe)}
+.risk-label{font-size:11px;color:var(--muted);margin-bottom:2px}
+.risk-name{font-size:16px;font-weight:700}
+.risk-name.HIGH{color:var(--danger)}
+.risk-name.MODERATE{color:var(--warn)}
+.risk-name.LOW{color:var(--safe)}
+.risk-bar-wrap{flex:1}
+.risk-bar-track2{height:8px;background:rgba(0,0,0,0.08);border-radius:4px;overflow:hidden;margin-top:6px}
+.risk-bar-fill2{height:100%;border-radius:4px}
+.risk-bar-fill2.HIGH{background:var(--danger)}
+.risk-bar-fill2.MODERATE{background:#f79233}
+.risk-bar-fill2.LOW{background:#36b37e}
+
+/* ── SECTION HEADING ── */
+.section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+/* ── SHAP / FEATURE CONTRIBUTIONS ── */
+.shap-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.shap-name{font-size:12px;color:var(--text);width:165px;flex-shrink:0}
+.shap-bar-outer{flex:1;height:18px;background:var(--surface2);border-radius:3px;overflow:hidden;border:1px solid var(--border)}
+.shap-bar-inner{height:100%;border-radius:2px;min-width:3px}
+.shap-bar-inner.pos{background:#de350b}
+.shap-bar-inner.neg{background:#36b37e}
+.shap-val-label{font-family:var(--mono);font-size:10px;color:var(--muted);width:48px;text-align:right;flex-shrink:0}
+
+/* ── CLINICAL DATA GRID ── */
+.clin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.clin-item{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:10px 12px}
+.clin-item-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:3px}
+.clin-item-val{font-size:13px;font-weight:600;color:var(--text);font-family:var(--mono)}
+.clin-item-desc{font-size:11px;color:var(--text2);font-family:var(--font)}
+
+/* ── FORM ── */
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px}
+.form-card-head{padding:14px 18px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.form-card-head svg{width:15px;height:15px;stroke:var(--clinical-blue);fill:none;stroke-width:2}
+.form-card-body{padding:16px 18px}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.span2{grid-column:span 2}
+.form-group.span3{grid-column:span 3}
+label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)}
+input,select{background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:8px 10px;font-family:var(--font);font-size:13px;color:var(--text);outline:none;transition:border-color 0.15s}
+input:focus,select:focus{border-color:var(--clinical-blue);box-shadow:0 0 0 2px var(--clinical-blue-lt)}
+select option{background:#fff}
+.form-actions{display:flex;gap:10px;margin-top:16px}
+.preview-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-top:16px;display:none}
+.preview-box.show{display:block}
+
+/* ── ANALYTICS ── */
+.analytics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:16px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.chart-card-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.chart-card-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.chart-box{position:relative;height:200px}
+.insight-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.insight{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+.insight-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;margin-bottom:8px}
+.insight-tag.red{background:var(--danger-bg);color:var(--danger)}
+.insight-tag.blue{background:var(--clinical-blue-lt);color:var(--clinical-blue)}
+.insight-tag.green{background:var(--safe-bg);color:var(--safe)}
+.insight-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.insight-text{font-size:12px;color:var(--text2);line-height:1.6}
+.insight-text strong{color:var(--text)}
+.source-table{width:100%;border-collapse:collapse;font-size:12px}
+.source-table th{padding:6px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:2px solid var(--border)}
+.source-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text2)}
+.source-table td:first-child{font-weight:600;color:var(--text)}
+
+/* ── MODEL PAGE ── */
+.model-header-strip{background:linear-gradient(135deg,var(--clinical-blue) 0%,#0747a6 100%);border-radius:var(--radius);padding:20px 24px;color:#fff;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
+.model-header-left .model-title{font-size:20px;font-weight:600;margin-bottom:4px}
+.model-header-left .model-sub{font-size:12px;opacity:0.75}
+.model-header-right{text-align:right}
+.model-auc{font-family:var(--mono);font-size:40px;font-weight:500;line-height:1}
+.model-auc-label{font-size:11px;opacity:0.75;margin-top:2px}
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.metric-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+.metric-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:6px}
+.metric-val{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--clinical-blue)}
+.model-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.feat-imp-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.feat-imp-name{font-size:12px;width:155px;flex-shrink:0;color:var(--text)}
+.feat-imp-bar-wrap{flex:1;height:16px;background:var(--surface2);border-radius:3px;overflow:hidden;border:1px solid var(--border)}
+.feat-imp-bar{height:100%;background:linear-gradient(90deg,var(--clinical-blue),var(--teal));border-radius:2px}
+.feat-imp-val{font-family:var(--mono);font-size:10px;color:var(--muted);width:38px;text-align:right}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-icon{width:48px;height:48px;margin:0 auto 12px;opacity:0.3}
+.empty-icon svg{width:48px;height:48px;stroke:var(--muted);fill:none;stroke-width:1.5}
+.empty p{font-size:13px}
+.empty a{color:var(--clinical-blue);text-decoration:none;font-weight:600}
+
+/* ── MISC ── */
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:var(--clinical-blue-lt);color:var(--clinical-blue);font-family:var(--mono)}
+.divider{height:1px;background:var(--border);margin:16px 0}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    </div>
+    <span class="logo-text">CardioScan <span>Clinical</span></span>
+  </div>
+  <div class="topbar-center">UCI Cleveland · Hungarian · Switzerland · VA  |  n=920 patients</div>
+  <div class="topbar-right">
+    <span class="model-chip">GBM · AUC 0.892</span>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="nav-group-label">Clinical</div>
+  <div class="nav-item active" onclick="go('dashboard')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Patient Registry
+    <span class="nav-badge" id="nb-patients">—</span>
+  </div>
+  <div class="nav-item" onclick="go('intake')">
+    <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+    New Patient Intake
+  </div>
+
+  <div class="nav-group-label" style="margin-top:8px">Research</div>
+  <div class="nav-item" onclick="go('analytics')">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Population Analytics
+  </div>
+  <div class="nav-item" onclick="go('model')">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Model Performance
+  </div>
+
+  <div style="margin-top:auto;padding:12px 16px;border-top:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted);line-height:1.6">
+      <strong style="color:var(--text2)">⚠ Clinical Disclaimer</strong><br>
+      For research use only. Not a substitute for clinical judgment.
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="content">
+
+<!-- ═══ DASHBOARD ═══ -->
+<section class="page active" id="page-dashboard">
+  <div class="page-header">
+    <div class="page-title">Patient Registry</div>
+    <div class="page-sub">Cardiac risk assessments — sorted by risk probability</div>
+  </div>
+
+  <div class="stats-row" id="stat-row">
+    <div class="stat-card total">
+      <div class="stat-card-top">
+        <div class="stat-label">Total Patients</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      </div>
+      <div class="stat-value" id="s-total">—</div>
+      <div class="stat-sub">enrolled</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-card-top">
+        <div class="stat-label">High Risk</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      </div>
+      <div class="stat-value" id="s-high">—</div>
+      <div class="stat-sub">≥ 60% probability</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-card-top">
+        <div class="stat-label">Moderate Risk</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      </div>
+      <div class="stat-value" id="s-mod">—</div>
+      <div class="stat-sub">30–60% probability</div>
+    </div>
+    <div class="stat-card safe">
+      <div class="stat-card-top">
+        <div class="stat-label">Low Risk</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+      </div>
+      <div class="stat-value" id="s-low">—</div>
+      <div class="stat-sub">&lt; 30% probability</div>
+    </div>
+  </div>
+
+  <div class="table-toolbar">
+    <span class="table-toolbar-left">All Patients</span>
+    <button class="btn btn-primary btn-sm" onclick="go('intake')">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Patient
+    </button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Age / Sex</th>
+          <th>Chest Pain</th>
+          <th>Risk Level</th>
+          <th>Probability</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="patient-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ INTAKE ═══ -->
+<section class="page" id="page-intake">
+  <div class="page-header">
+    <div class="page-title">New Patient Intake</div>
+    <div class="page-sub">Enter clinical measurements to generate cardiac risk assessment</div>
+  </div>
+
+  <div class="form-card">
+    <div class="form-card-head">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Patient Identification
+    </div>
+    <div class="form-card-body">
+      <div class="form-grid">
+        <div class="form-group span2"><label>Full Name / Patient ID</label><input id="f-name" type="text" placeholder="e.g. Jane Smith"></div>
+        <div class="form-group"><label>Age (years)</label><input id="f-age" type="number" min="20" max="100" placeholder="55"></div>
+        <div class="form-group"><label>Sex</label>
+          <select id="f-sex"><option value="">Select…</option><option value="1">Male</option><option value="0">Female</option></select>
+        </div>
+        <div class="form-group"><label>Chest Pain Type</label>
+          <select id="f-cp"><option value="">Select…</option><option value="0">Typical Angina</option><option value="1">Atypical Angina</option><option value="2">Non-anginal Pain</option><option value="3">Asymptomatic</option></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="form-card-head">
+      <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Vitals & Laboratory Values
+    </div>
+    <div class="form-card-body">
+      <div class="form-grid">
+        <div class="form-group"><label>Resting BP (mm Hg)</label><input id="f-trestbps" type="number" placeholder="130"></div>
+        <div class="form-group"><label>Serum Cholesterol (mg/dL)</label><input id="f-chol" type="number" placeholder="240"></div>
+        <div class="form-group"><label>Fasting Blood Sugar</label>
+          <select id="f-fbs"><option value="">Select…</option><option value="0">≤ 120 mg/dL</option><option value="1">&gt; 120 mg/dL</option></select>
+        </div>
+        <div class="form-group"><label>Max Heart Rate (bpm)</label><input id="f-thalach" type="number" placeholder="160"></div>
+        <div class="form-group"><label>Exercise Induced Angina</label>
+          <select id="f-exang"><option value="">Select…</option><option value="0">No</option><option value="1">Yes</option></select>
+        </div>
+        <div class="form-group"><label>ST Depression (Oldpeak)</label><input id="f-oldpeak" type="number" step="0.1" placeholder="1.5"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="form-card-head">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      ECG & Imaging
+    </div>
+    <div class="form-card-body">
+      <div class="form-grid">
+        <div class="form-group"><label>Resting ECG</label>
+          <select id="f-restecg"><option value="">Select…</option><option value="0">Normal</option><option value="1">ST-T Abnormality</option><option value="2">LV Hypertrophy</option></select>
+        </div>
+        <div class="form-group"><label>Peak Exercise ST Slope</label>
+          <select id="f-slope"><option value="">Select…</option><option value="0">Upsloping</option><option value="1">Flat</option><option value="2">Downsloping</option></select>
+        </div>
+        <div class="form-group"><label>Major Vessels Colored (0–4)</label>
+          <select id="f-ca"><option value="">Select…</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+        </div>
+        <div class="form-group"><label>Thalassemia</label>
+          <select id="f-thal"><option value="">Select…</option><option value="0">Normal</option><option value="1">Fixed Defect</option><option value="2">Reversible Defect</option></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" onclick="submitPatient()">
+      <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Assess &amp; Save Patient
+    </button>
+    <button class="btn btn-ghost" onclick="previewRisk()">Preview Risk</button>
+    <button class="btn btn-ghost" onclick="clearForm()">Clear Form</button>
+  </div>
+
+  <div class="preview-box" id="preview-box">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:12px">RISK PREVIEW</div>
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px">Probability</div>
+        <div id="pv-pct" style="font-family:var(--mono);font-size:32px;font-weight:500"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px">Risk Level</div>
+        <div id="pv-level" style="font-size:15px;font-weight:700"></div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Confidence</div>
+        <div class="prob-track" style="height:8px"><div id="pv-bar" class="prob-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div id="pv-shap"></div>
+  </div>
+</section>
+
+<!-- ═══ ANALYTICS ═══ -->
+<section class="page" id="page-analytics">
+  <div class="page-header">
+    <div class="page-title">Population Analytics</div>
+    <div class="page-sub">ETL outcomes — combined UCI Cleveland, Hungarian, Switzerland & VA datasets (n=920)</div>
+  </div>
+
+  <div class="insight-strip" id="insights"></div>
+
+  <div class="analytics-grid">
+    <div class="chart-card">
+      <div class="chart-card-title">Disease Rate by Age Group</div>
+      <div class="chart-card-sub">% of cohort with heart disease per decade</div>
+      <div class="chart-box"><canvas id="ch-age"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Disease Rate by Sex</div>
+      <div class="chart-card-sub">Prevalence differs significantly between male and female patients</div>
+      <div class="chart-box"><canvas id="ch-sex"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Overall Disease Prevalence</div>
+      <div class="chart-card-sub">Disease vs. no disease across full combined dataset</div>
+      <div class="chart-box"><canvas id="ch-prev"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Chest Pain Type Distribution</div>
+      <div class="chart-card-sub">Patient count by chest pain presentation</div>
+      <div class="chart-box"><canvas id="ch-cp"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-card-title">Dataset Sources</div>
+    <div class="chart-card-sub">ETL — provenance and disease rates by collection site</div>
+    <table class="source-table" id="src-table" style="margin-top:4px"></table>
+  </div>
+</section>
+
+<!-- ═══ MODEL ═══ -->
+<section class="page" id="page-model">
+  <div class="page-header">
+    <div class="page-title">Model Performance</div>
+    <div class="page-sub">Gradient Boosting Classifier (XGBoost-equivalent) · sklearn GBM</div>
+  </div>
+
+  <div class="model-header-strip">
+    <div class="model-header-left">
+      <div class="model-title">Gradient Boosting Classifier</div>
+      <div class="model-sub">300 estimators · learning rate 0.05 · max depth 4 · subsample 0.8 · stratified 5-fold CV</div>
+    </div>
+    <div class="model-header-right">
+      <div class="model-auc" id="m-auc">—</div>
+      <div class="model-auc-label">Test AUC</div>
+    </div>
+  </div>
+
+  <div class="metrics-grid" id="metrics-grid"></div>
+
+  <div class="model-charts">
+    <div class="chart-card">
+      <div class="chart-card-title">ROC Curve</div>
+      <div class="chart-card-sub">Receiver operating characteristic — test set</div>
+      <div class="chart-box"><canvas id="ch-roc"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Feature Importances</div>
+      <div class="chart-card-sub">Mean decrease in impurity (MDI) — Gradient Boosting</div>
+      <div id="fi-list" style="margin-top:8px"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- PATIENT DETAIL DRAWER -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer(event)">
+  <div class="drawer" id="drawer">
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-patient-name" id="dr-name"></div>
+        <div class="drawer-patient-sub" id="dr-sub"></div>
+      </div>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body" id="dr-body"></div>
+  </div>
+</div>
+
+<script>
+// ── Data & labels ─────────────────────────────────────────────────────────────
+let PATIENTS=[], META={}, CHARTS={};
+
+const FL = {
+  age:'Age', sex:'Sex', cp:'Chest Pain Type', trestbps:'Resting BP',
+  chol:'Cholesterol', fbs:'Fasting BG >120', restecg:'Resting ECG',
+  thalach:'Max Heart Rate', exang:'Exercise Angina', oldpeak:'ST Depression',
+  slope:'ST Slope', ca:'Vessels Colored', thal:'Thalassemia'
+};
+const SEX  = {0:'Female',1:'Male'};
+const CP   = {0:'Typical Angina',1:'Atypical Angina',2:'Non-anginal Pain',3:'Asymptomatic'};
+const THAL = {0:'Normal',1:'Fixed Defect',2:'Reversible Defect'};
+const ECG  = {0:'Normal',1:'ST-T Abnormality',2:'LV Hypertrophy'};
+const SLP  = {0:'Upsloping',1:'Flat',2:'Downsloping'};
+const RISK_COLOR = {HIGH:'var(--danger)',MODERATE:'var(--warn)',LOW:'var(--safe)'};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init(){
+  [PATIENTS, META] = await Promise.all([
+    fetch('/api/patients').then(r=>r.json()),
+    fetch('/api/metadata').then(r=>r.json())
+  ]);
+  renderDashboard();
+  renderAnalytics();
+  renderModel();
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function go(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelector(`.nav-item[onclick="go('${id}')"]`).classList.add('active');
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function renderDashboard(){
+  const high=PATIENTS.filter(p=>p.risk_level==='HIGH').length;
+  const mod =PATIENTS.filter(p=>p.risk_level==='MODERATE').length;
+  const low =PATIENTS.filter(p=>p.risk_level==='LOW').length;
+  document.getElementById('s-total').textContent=PATIENTS.length;
+  document.getElementById('s-high').textContent=high;
+  document.getElementById('s-mod').textContent=mod;
+  document.getElementById('s-low').textContent=low;
+  document.getElementById('nb-patients').textContent=PATIENTS.length;
+
+  const tbody=document.getElementById('patient-tbody');
+  if(!PATIENTS.length){
+    tbody.innerHTML=`<tr><td colspan="6"><div class="empty">
+      <div class="empty-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+      <p>No patients enrolled. <a href="#" onclick="go('intake');return false;">Add the first patient →</a></p>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML=PATIENTS.map(p=>`
+    <tr>
+      <td><div class="patient-name-cell">${p.name}</div><div class="patient-meta-cell">#${p.id}</div></td>
+      <td>${p.age} yrs · ${SEX[p.sex]||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${CP[p.cp]||'—'}</td>
+      <td><span class="risk-badge ${p.risk_level}"><span class="risk-dot"></span>${p.risk_level}</span></td>
+      <td class="prob-cell"><div class="prob-wrap">
+        <span class="prob-val">${p.probability}%</span>
+        <div class="prob-track"><div class="prob-fill ${p.risk_level}" style="width:${p.probability}%"></div></div>
+      </div></td>
+      <td style="display:flex;gap:6px;padding-top:9px">
+        <button class="btn btn-ghost btn-sm" onclick="openDrawer(${p.id})">View</button>
+        <button class="btn btn-danger btn-sm" onclick="delPatient(${p.id})">Remove</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── Drawer ────────────────────────────────────────────────────────────────────
+function openDrawer(id){
+  const p=PATIENTS.find(x=>x.id===id); if(!p) return;
+  document.getElementById('dr-name').textContent=p.name;
+  document.getElementById('dr-sub').textContent=`${p.age} yrs · ${SEX[p.sex]||'?'} · Patient #${p.id}`;
+
+  const contribs=p.contributions||{};
+  const sorted=Object.entries(contribs).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+  const maxA=Math.max(...sorted.map(([,v])=>Math.abs(v)),0.001);
+
+  document.getElementById('dr-body').innerHTML=`
+    <div class="risk-summary ${p.risk_level}">
+      <div class="risk-pct ${p.risk_level}">${p.probability}%</div>
+      <div style="flex:1">
+        <div class="risk-label">Cardiac Disease Risk Probability</div>
+        <div class="risk-name ${p.risk_level}">${p.risk_level} RISK</div>
+        <div class="risk-bar-track2" style="margin-top:8px">
+          <div class="risk-bar-fill2 ${p.risk_level}" style="width:${p.probability}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head">Feature Contributions (Permutation Analysis)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+      <span style="color:var(--danger);font-weight:600">■ Red</span> = increases risk &nbsp;|&nbsp;
+      <span style="color:var(--safe);font-weight:600">■ Green</span> = decreases risk
+    </div>
+    ${sorted.slice(0,10).map(([feat,val])=>{
+      const pct=Math.abs(val)/maxA*100;
+      return `<div class="shap-item">
+        <div class="shap-name">${FL[feat]||feat}</div>
+        <div class="shap-bar-outer"><div class="shap-bar-inner ${val>0?'pos':'neg'}" style="width:${pct}%"></div></div>
+        <div class="shap-val-label">${val>0?'+':''}${(val*100).toFixed(1)}%</div>
+      </div>`;
+    }).join('')}
+
+    <div class="section-head">Clinical Values</div>
+    <div class="clin-grid">
+      <div class="clin-item"><div class="clin-item-label">Age</div><div class="clin-item-val">${p.age} yrs</div></div>
+      <div class="clin-item"><div class="clin-item-label">Sex</div><div class="clin-item-val">${SEX[p.sex]||'—'}</div></div>
+      <div class="clin-item"><div class="clin-item-label">Chest Pain</div><div class="clin-item-val">${CP[p.cp]||'—'}</div><div class="clin-item-desc">Type ${p.cp}</div></div>
+      <div class="clin-item"><div class="clin-item-label">Resting BP</div><div class="clin-item-val">${p.trestbps} mmHg</div></div>
+      <div class="clin-item"><div class="clin-item-label">Cholesterol</div><div class="clin-item-val">${p.chol} mg/dL</div></div>
+      <div class="clin-item"><div class="clin-item-label">Fasting BG</div><div class="clin-item-val">${p.fbs?'> 120':'≤ 120'} mg/dL</div></div>
+      <div class="clin-item"><div class="clin-item-label">Resting ECG</div><div class="clin-item-val">${ECG[p.restecg]||'—'}</div></div>
+      <div class="clin-item"><div class="clin-item-label">Max Heart Rate</div><div class="clin-item-val">${p.thalach} bpm</div></div>
+      <div class="clin-item"><div class="clin-item-label">Exercise Angina</div><div class="clin-item-val">${p.exang?'Yes':'No'}</div></div>
+      <div class="clin-item"><div class="clin-item-label">ST Depression</div><div class="clin-item-val">${p.oldpeak}</div></div>
+      <div class="clin-item"><div class="clin-item-label">ST Slope</div><div class="clin-item-val">${SLP[p.slope]||'—'}</div></div>
+      <div class="clin-item"><div class="clin-item-label">Vessels Colored</div><div class="clin-item-val">${p.ca}</div></div>
+      <div class="clin-item"><div class="clin-item-label">Thalassemia</div><div class="clin-item-val">${THAL[p.thal]||'—'}</div></div>
+    </div>
+  `;
+  document.getElementById('drawer-overlay').classList.add('open');
+}
+
+function closeDrawer(e){
+  if(e && e.target!==document.getElementById('drawer-overlay')) return;
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+// ── Add / Delete patients ─────────────────────────────────────────────────────
+function getForm(){
+  const fs=['name','age','sex','cp','trestbps','chol','fbs','restecg','thalach','exang','oldpeak','slope','ca','thal'];
+  const d={};
+  for(const f of fs){
+    const el=document.getElementById('f-'+f);
+    if(!el) continue;
+    const v=el.value.trim();
+    if(f==='name'){d[f]=v||'New Patient';continue;}
+    if(v==='') return null;
+    d[f]=parseFloat(v);
+  }
+  return d;
+}
+
+function clearForm(){
+  ['name','age','sex','cp','trestbps','chol','fbs','restecg','thalach','exang','oldpeak','slope','ca','thal']
+    .forEach(f=>{const el=document.getElementById('f-'+f);if(el)el.value='';});
+  document.getElementById('preview-box').classList.remove('show');
+}
+
+async function previewRisk(){
+  const d=getForm();
+  if(!d){alert('Please fill in all fields');return;}
+  const r=await fetch('/api/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+  showPreview(await r.json());
+}
+
+function showPreview(res){
+  const box=document.getElementById('preview-box');
+  box.classList.add('show');
+  const colors={HIGH:'var(--danger)',MODERATE:'var(--warn)',LOW:'var(--safe)'};
+  document.getElementById('pv-pct').textContent=res.probability+'%';
+  document.getElementById('pv-pct').style.color=colors[res.risk_level];
+  document.getElementById('pv-level').textContent=res.risk_level+' RISK';
+  document.getElementById('pv-level').style.color=colors[res.risk_level];
+  const bar=document.getElementById('pv-bar');
+  bar.className='prob-fill '+res.risk_level;
+  bar.style.width=res.probability+'%';
+
+  if(res.contributions){
+    const sorted=Object.entries(res.contributions).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5);
+    const maxA=Math.max(...sorted.map(([,v])=>Math.abs(v)),0.001);
+    document.getElementById('pv-shap').innerHTML=
+      `<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px">Top Contributing Factors</div>`+
+      sorted.map(([feat,val])=>{
+        const pct=Math.abs(val)/maxA*100;
+        return `<div class="shap-item"><div class="shap-name">${FL[feat]}</div>
+          <div class="shap-bar-outer"><div class="shap-bar-inner ${val>0?'pos':'neg'}" style="width:${pct}%"></div></div>
+          <div class="shap-val-label">${val>0?'+':''}${(val*100).toFixed(1)}%</div></div>`;
+      }).join('');
+  }
+}
+
+async function submitPatient(){
+  const d=getForm();
+  if(!d){alert('Please fill in all fields');return;}
+  const r=await fetch('/api/patients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+  const p=await r.json();
+  PATIENTS.push(p);
+  renderDashboard();
+  showPreview(p);
+  alert(`✓ ${p.name} saved — ${p.risk_level} RISK (${p.probability}%)`);
+}
+
+async function delPatient(id){
+  if(!confirm('Remove this patient from registry?')) return;
+  await fetch('/api/patients/'+id,{method:'DELETE'});
+  PATIENTS=PATIENTS.filter(p=>p.id!==id);
+  renderDashboard();
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+function renderAnalytics(){
+  const a=META.analytics; if(!a) return;
+
+  // Insights
+  document.getElementById('insights').innerHTML=`
+    <div class="insight">
+      <div class="insight-tag red">Key Finding</div>
+      <div class="insight-title">Overall Prevalence</div>
+      <div class="insight-text"><strong>${a.prevalence}%</strong> of ${a.n_total} patients across all 4 sites have diagnosed heart disease (${a.n_disease} cases).</div>
+    </div>
+    <div class="insight">
+      <div class="insight-tag blue">Age Effect</div>
+      <div class="insight-title">Age Difference</div>
+      <div class="insight-text">Disease patients average <strong>${a.age_mean_disease} yrs</strong> vs <strong>${a.age_mean_healthy} yrs</strong> for healthy patients — a ${(a.age_mean_disease-a.age_mean_healthy).toFixed(1)}-year gap.</div>
+    </div>
+    <div class="insight">
+      <div class="insight-tag green">Sex Disparity</div>
+      <div class="insight-title">Male vs. Female Risk</div>
+      <div class="insight-text"><strong>${a.disease_by_sex?.Male}%</strong> of males vs <strong>${a.disease_by_sex?.Female}%</strong> of females in the combined cohort have disease.</div>
+    </div>
+  `;
+
+  Chart.defaults.font.family="'IBM Plex Sans', sans-serif";
+  Chart.defaults.color='#7a869a';
+
+  const ageL=Object.keys(a.disease_by_age);
+  const ageV=Object.values(a.disease_by_age);
+  mkChart('ch-age','bar',{
+    labels:ageL,
+    datasets:[{label:'Disease Rate (%)',data:ageV,
+      backgroundColor:ageV.map(v=>v>55?'rgba(191,38,0,0.75)':v>35?'rgba(247,146,51,0.75)':'rgba(54,179,126,0.75)'),
+      borderRadius:4,barThickness:36}]
+  },{scales:{y:{grid:{color:'#dde1e7'},ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}},plugins:{legend:{display:false}}});
+
+  mkChart('ch-sex','bar',{
+    labels:['Male','Female'],
+    datasets:[{data:[a.disease_by_sex?.Male,a.disease_by_sex?.Female],
+      backgroundColor:['rgba(0,82,204,0.75)','rgba(0,163,191,0.75)'],
+      borderRadius:4,barThickness:60}]
+  },{scales:{y:{grid:{color:'#dde1e7'},ticks:{callback:v=>v+'%'},max:80},x:{grid:{display:false}}},plugins:{legend:{display:false}}});
+
+  mkChart('ch-prev','doughnut',{
+    labels:['Heart Disease','No Disease'],
+    datasets:[{data:[a.n_disease,a.n_healthy],
+      backgroundColor:['rgba(191,38,0,0.8)','rgba(54,179,126,0.8)'],
+      borderColor:['#bf2600','#36b37e'],borderWidth:2,hoverOffset:6}]
+  },{cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:14}}}});
+
+  const cpL=Object.keys(a.cp_dist);
+  const cpV=Object.values(a.cp_dist);
+  mkChart('ch-cp','bar',{
+    labels:cpL,
+    datasets:[{label:'Patients',data:cpV,
+      backgroundColor:'rgba(0,82,204,0.65)',borderRadius:4}]
+  },{scales:{y:{grid:{color:'#dde1e7'}},x:{grid:{display:false}}},plugins:{legend:{display:false}}});
+
+  // Source table
+  const src=a.by_source||{};
+  const labels={cleveland:'Cleveland Clinic (OH)',hungarian:'Hungarian Institute',switzerland:'Univ. Hospital Switzerland',va:'VA Medical Center (CA)'};
+  document.getElementById('src-table').innerHTML=
+    `<thead><tr><th>Source</th><th>Patients</th><th>Disease Rate</th><th>Status</th></tr></thead><tbody>`+
+    Object.entries(src).map(([k,v])=>
+      `<tr><td>${labels[k]||k}</td><td>${v.n}</td><td>${v.disease_pct}%</td><td><span class="tag">✓ ETL Complete</span></td></tr>`
+    ).join('')+'</tbody>';
+}
+
+// ── Model ─────────────────────────────────────────────────────────────────────
+function renderModel(){
+  const m=META.metrics; if(!m) return;
+  document.getElementById('m-auc').textContent=m.test_auc.toFixed(3);
+
+  document.getElementById('metrics-grid').innerHTML=`
+    <div class="metric-box"><div class="metric-label">CV AUC (5-fold)</div><div class="metric-val">${m.cv_auc_mean.toFixed(3)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">±${m.cv_auc_std.toFixed(3)} std</div></div>
+    <div class="metric-box"><div class="metric-label">Accuracy</div><div class="metric-val">${(m.test_acc*100).toFixed(1)}%</div></div>
+    <div class="metric-box"><div class="metric-label">Precision</div><div class="metric-val">${(m.test_precision*100).toFixed(1)}%</div></div>
+    <div class="metric-box"><div class="metric-label">Recall</div><div class="metric-val">${(m.test_recall*100).toFixed(1)}%</div></div>
+  `;
+
+  const roc=m.roc;
+  mkChart('ch-roc','line',{
+    labels:roc.fpr.map(v=>v.toFixed(2)),
+    datasets:[
+      {label:`AUC = ${m.test_auc.toFixed(3)}`,data:roc.tpr,
+       borderColor:'#0052cc',backgroundColor:'rgba(0,82,204,0.08)',fill:true,pointRadius:0,tension:0.3,borderWidth:2},
+      {label:'Random',data:roc.fpr,borderColor:'#c1c7d0',borderDash:[4,4],pointRadius:0,borderWidth:1}
+    ]
+  },{
+    scales:{
+      x:{title:{display:true,text:'False Positive Rate'},grid:{color:'#dde1e7'}},
+      y:{title:{display:true,text:'True Positive Rate'},grid:{color:'#dde1e7'}}
+    },
+    plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12}}}
+  });
+
+  const fi=Object.entries(m.feature_importances).sort((a,b)=>b[1]-a[1]);
+  const maxFi=fi[0][1];
+  document.getElementById('fi-list').innerHTML=fi.map(([feat,val])=>`
+    <div class="feat-imp-item">
+      <div class="feat-imp-name">${FL[feat]||feat}</div>
+      <div class="feat-imp-bar-wrap"><div class="feat-imp-bar" style="width:${val/maxFi*100}%"></div></div>
+      <div class="feat-imp-val">${(val*100).toFixed(1)}%</div>
+    </div>
+  `).join('');
+}
+
+// ── Chart helper ──────────────────────────────────────────────────────────────
+function mkChart(id,type,data,options={}){
+  if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}
+  CHARTS[id]=new Chart(document.getElementById(id),{
+    type,data,
+    options:{responsive:true,maintainAspectRatio:false,...options}
+  });
+}
+
+init();
+</script>
+</body>
+</html>
